@@ -29,6 +29,14 @@ Linux
    * `cmake ..`
    * `make`
 
+ERIKA Enterprise
+----------------
+
+   * `mkdir build`
+   * `cd build`
+   * `cmake -DCMAKE_SYSTEM_NAME="erika" ..`
+   * `make`
+
 Documentation
 -------------
 
