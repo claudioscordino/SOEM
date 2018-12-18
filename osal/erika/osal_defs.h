@@ -17,10 +17,6 @@ extern "C"
 #define PACKED_END
 #endif
 
-#define OSAL_THREAD_HANDLE pthread_t *
-#define OSAL_THREAD_FUNC void
-#define OSAL_THREAD_FUNC_RT void
-
 #ifdef __cplusplus
 }
 #endif
