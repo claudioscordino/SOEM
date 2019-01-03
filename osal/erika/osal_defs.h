@@ -11,11 +11,18 @@ extern "C"
 {
 #endif
 
+#include <sys/time.h>
+#include <stdlib.h>
+
 #ifndef PACKED
 #define PACKED_BEGIN
 #define PACKED  __attribute__((__packed__))
 #define PACKED_END
 #endif
+
+int osal_gettimeofday(struct timeval *tv, struct timezone *tz);
+void *osal_malloc(size_t size);
+void osal_free(void *ptr);
 
 #ifdef __cplusplus
 }

@@ -31,6 +31,7 @@ void ee_usleep(uint32 usec);
 inline int osal_usleep (uint32 usec)
 {
 	ee_usleep(usec);
+	return 0;
 }
 
 int osal_gettimeofday(struct timeval *tv, struct timezone *tz)
