@@ -45,10 +45,10 @@
 /** Redundancy modes */
 enum
 {
-   /** No redundancy, single NIC mode */
-   ECT_RED_NONE,
-   /** Double redundant NIC connecetion */
-   ECT_RED_DOUBLE
+   	/** No redundancy, single NIC mode */
+   	ECT_RED_NONE,
+   	/** Double redundant NIC connection */
+   	ECT_RED_DOUBLE
 };
 
 
@@ -67,8 +67,9 @@ const uint16 secMAC[3] = { 0x0604, 0x0404, 0x0404 };
 /** second MAC word is used for identification */
 #define RX_SEC secMAC[1]
 
-static void ecx_clear_rxbufstat(int *rxbufstat)
+static inline void ecx_clear_rxbufstat(int *rxbufstat)
 {
+	memset(rxbufstat, EC_BUF_EMPTY, EC_MAXBUF);
 }
 
 /** Basic setup to connect NIC to socket.
@@ -79,17 +80,48 @@ static void ecx_clear_rxbufstat(int *rxbufstat)
  */
 int ecx_setupnic(ecx_portt *port, const char *ifname, int secondary)
 {
-   return 1;
+   	int i;
+
+	// TODO:
+	// int dev = atoi(ifname);
+	// if (get_device(dev) == NULL)
+	//	return 0;
+	// eth_set_speed(dev, 100);
+        // eth_setup_rx(dev);
+        // eth_setup_tx(dev);
+	// interrupt_enable(dev);
+
+      	port->sockhandle        = -1;
+      	port->lastidx           = 0;
+      	port->redstate          = ECT_RED_NONE;
+      	port->stack.sock        = &(port->sockhandle);
+      	port->stack.txbuf       = &(port->txbuf);
+      	port->stack.txbuflength = &(port->txbuflength);
+      	port->stack.tempbuf     = &(port->tempinbuf);
+      	port->stack.rxbuf       = &(port->rxbuf);
+      	port->stack.rxbufstat   = &(port->rxbufstat);
+      	port->stack.rxsa        = &(port->rxsa);
+      	ecx_clear_rxbufstat(&(port->rxbufstat[0]));
+
+   	/* setup ethernet headers in tx buffers so we don't have to repeat it */
+   	for (i = 0; i < EC_MAXBUF; i++)
+   	{
+      		ec_setupheader(&(port->txbuf[i]));
+      		port->rxbufstat[i] = EC_BUF_EMPTY;
+   	}
+   	ec_setupheader(&(port->txbuf2));
+
+	return 1;
 }
 
 /** Close sockets used
  * @param[in] port        = port context struct
  * @return 0
  */
-int ecx_closenic(ecx_portt *port)
+inline int ecx_closenic(ecx_portt *port)
 {
-
-   return 0;
+	// Nothing to do
+   	return 0;
 }
 
 /** Fill buffer with ethernet header structure.
@@ -99,6 +131,15 @@ int ecx_closenic(ecx_portt *port)
  */
 void ec_setupheader(void *p)
 {
+   	ec_etherheadert *bp;
+   	bp = p;
+   	bp->da0 = oshw_htons(0xffff);
+   	bp->da1 = oshw_htons(0xffff);
+   	bp->da2 = oshw_htons(0xffff);
+   	bp->sa0 = oshw_htons(priMAC[0]);
+   	bp->sa1 = oshw_htons(priMAC[1]);
+   	bp->sa2 = oshw_htons(priMAC[2]);
+   	bp->etype = oshw_htons(ETH_P_ECAT);
 }
 
 /** Get new frame identifier index and allocate corresponding rx buffer.
@@ -128,7 +169,7 @@ void ecx_setbufstat(ecx_portt *port, int idx, int bufstat)
 int ecx_outframe(ecx_portt *port, int idx, int stacknumber)
 {
 
-   return 1;
+   	return 1;
 }
 
 /** Transmit buffer over socket (non blocking).
@@ -139,7 +180,7 @@ int ecx_outframe(ecx_portt *port, int idx, int stacknumber)
 int ecx_outframe_red(ecx_portt *port, int idx)
 {
 
-   return 1;
+   	return 1;
 }
 
 /** Non blocking read of socket. Put frame in temporary buffer.
@@ -149,7 +190,7 @@ int ecx_outframe_red(ecx_portt *port, int idx)
  */
 static int ecx_recvpkt(ecx_portt *port, int stacknumber)
 {
-   return 1;
+   	return 1;
 }
 
 /** Non blocking receive frame function. Uses RX buffer and index to combine
@@ -170,7 +211,7 @@ static int ecx_recvpkt(ecx_portt *port, int stacknumber)
  */
 int ecx_inframe(ecx_portt *port, int idx, int stacknumber)
 {
-   return 1;
+   	return 1;
 }
 
 /** Blocking redundant receive frame function. If redundant mode is not active then
@@ -188,8 +229,8 @@ int ecx_inframe(ecx_portt *port, int idx, int stacknumber)
 static int ecx_waitinframe_red(ecx_portt *port, int idx, osal_timert *timer)
 {
 
-   /* return WKC or EC_NOFRAME */
-   return 1;
+   	/* return WKC or EC_NOFRAME */
+   	return 1;
 }
 
 /** Blocking receive frame function. Calls ec_waitinframe_red().
@@ -202,7 +243,7 @@ static int ecx_waitinframe_red(ecx_portt *port, int idx, osal_timert *timer)
 int ecx_waitinframe(ecx_portt *port, int idx, int timeout)
 {
 
-   return 1;
+   	return 1;
 }
 
 /** Blocking send and recieve frame function. Used for non processdata frames.
@@ -220,51 +261,6 @@ int ecx_waitinframe(ecx_portt *port, int idx, int timeout)
 int ecx_srconfirm(ecx_portt *port, int idx, int timeout)
 {
 
-   return 1;
+   	return 1;
 }
 
-#ifdef EC_VER1
-int ec_setupnic(const char *ifname, int secondary)
-{
-   return 1;
-}
-
-int ec_closenic(void)
-{
-   return 1;
-}
-
-int ec_getindex(void)
-{
-   return 1;
-}
-
-void ec_setbufstat(int idx, int bufstat)
-{
-}
-
-int ec_outframe(int idx, int stacknumber)
-{
-   return 1;
-}
-
-int ec_outframe_red(int idx)
-{
-   return 1;
-}
-
-int ec_inframe(int idx, int stacknumber)
-{
-   return 1;
-}
-
-int ec_waitinframe(int idx, int timeout)
-{
-   return 1;
-}
-
-int ec_srconfirm(int idx, int timeout)
-{
-   return 1;
-}
-#endif
