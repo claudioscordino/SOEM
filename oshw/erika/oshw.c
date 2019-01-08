@@ -8,9 +8,9 @@
 #include <string.h>
 #include <machine/endian.h>
 #include "oshw.h"
+#include "intel_i210.h"
 
-#define MAX_ADAPTERS	3
-ec_adaptert	adapters [MAX_ADAPTERS];
+ec_adaptert	adapters [DEVS_MAX_NB];
 
 /**
  * Host to Network byte order (i.e. to big endian).
@@ -41,13 +41,18 @@ inline uint16 oshw_ntohs(uint16 network)
  */
 ec_adaptert* oshw_find_adapters(void)
 {
-	// TODO: call eth_discover_devices()
-	// if (devs_nb < 1)
-	//	return NULL;
-	// Iterate over devs[i] and fill as follows:
-	//	sprintf(adapters[i].name, "%d\n", i); 
-	//	sprintf(adapters[i].desc, "%d\n", i); 
-	//	adapters[i].next = ...
+	int i;
+	if (eth_discover_devices() < 0)
+		return NULL;	// ERROR
+	for (i = 0;; ++i) {
+		struct eth_device *dev = eth_get_device(i);
+		if (dev == NULL) {
+			adapters[i-1].next = NULL;
+			break;
+		}
+		strncpy(adapters[i].name, dev->name, MAX_DEVICE_NAME);
+		adapters[i].next = &adapters[i+1];
+	}
 	return &(adapters[0]);
 }
 
