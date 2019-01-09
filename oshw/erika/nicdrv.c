@@ -41,6 +41,7 @@
 
 #include "oshw.h"
 #include "osal.h"
+#include "intel_i210.h"
 
 /** Redundancy modes */
 enum
@@ -80,38 +81,43 @@ static inline void ecx_clear_rxbufstat(int *rxbufstat)
  */
 int ecx_setupnic(ecx_portt *port, const char *ifname, int secondary)
 {
-   	int i;
+   	int d;
 
-	// TODO:
-	// int dev = atoi(ifname);
-	// if (get_device(dev) == NULL)
-	//	return 0;
-	// eth_set_speed(dev, 100);
-        // eth_setup_rx(dev);
-        // eth_setup_tx(dev);
-	// interrupt_enable(dev);
+	for (d = 0;; ++d) {
+		struct eth_device *dev = eth_get_device(d);
 
-      	port->sockhandle        = -1;
-      	port->lastidx           = 0;
-      	port->redstate          = ECT_RED_NONE;
-      	port->stack.sock        = &(port->sockhandle);
-      	port->stack.txbuf       = &(port->txbuf);
-      	port->stack.txbuflength = &(port->txbuflength);
-      	port->stack.tempbuf     = &(port->tempinbuf);
-      	port->stack.rxbuf       = &(port->rxbuf);
-      	port->stack.rxbufstat   = &(port->rxbufstat);
-      	port->stack.rxsa        = &(port->rxsa);
-      	ecx_clear_rxbufstat(&(port->rxbufstat[0]));
+		if (dev == NULL)
+			return 0; // ERROR
 
-   	/* setup ethernet headers in tx buffers so we don't have to repeat it */
-   	for (i = 0; i < EC_MAXBUF; i++)
-   	{
-      		ec_setupheader(&(port->txbuf[i]));
-      		port->rxbufstat[i] = EC_BUF_EMPTY;
-   	}
-   	ec_setupheader(&(port->txbuf2));
+		if (!strncmp(dev->name, ifname, MAX_DEVICE_NAME)){
+			// Device found
+			int i;
 
-	return 1;
+			eth_setup_device(d);
+
+      			port->sockhandle        = -1;
+      			port->lastidx           = 0;
+      			port->redstate          = ECT_RED_NONE;
+      			port->stack.sock        = &(port->sockhandle);
+      			port->stack.txbuf       = &(port->txbuf);
+      			port->stack.txbuflength = &(port->txbuflength);
+      			port->stack.tempbuf     = &(port->tempinbuf);
+      			port->stack.rxbuf       = &(port->rxbuf);
+      			port->stack.rxbufstat   = &(port->rxbufstat);
+      			port->stack.rxsa        = &(port->rxsa);
+      			ecx_clear_rxbufstat(&(port->rxbufstat[0]));
+
+   			/* setup ethernet headers in tx buffers so we don't have to repeat it */
+   			for (i = 0; i < EC_MAXBUF; i++)
+   			{
+      				ec_setupheader(&(port->txbuf[i]));
+      				port->rxbufstat[i] = EC_BUF_EMPTY;
+   			}
+   			ec_setupheader(&(port->txbuf2));
+
+			return 1;
+		}
+	}
 }
 
 /** Close sockets used
