@@ -87,13 +87,14 @@ int ecx_setupnic(ecx_portt *port, const char *ifname, int secondary)
 		struct eth_device *dev = eth_get_device(d);
 
 		if (dev == NULL)
-			return 0; // ERROR
+			return 0; // ERROR: device not found
 
 		if (!strncmp(dev->name, ifname, MAX_DEVICE_NAME)){
 			// Device found
 			int i;
 
 			eth_setup_device(d);
+			port->dev_id		= d;
 
       			port->sockhandle        = -1;
       			port->lastidx           = 0;
@@ -154,7 +155,29 @@ void ec_setupheader(void *p)
  */
 int ecx_getindex(ecx_portt *port)
 {
-	return 1;
+   	int idx;
+   	int cnt = 0;
+
+	// TODO: add locking
+
+   	idx = port->lastidx + 1;
+   	/* index can't be larger than buffer array */
+   	if (idx >= EC_MAXBUF)
+      		idx = 0;
+
+   	/* try to find unused index */
+   	while ((port->rxbufstat[idx] != EC_BUF_EMPTY) && (cnt < EC_MAXBUF)) {
+      		idx++;
+      		cnt++;
+      		if (idx >= EC_MAXBUF)
+         		idx = 0;
+   	}
+   	port->rxbufstat[idx] = EC_BUF_ALLOC;
+   	if (port->redstate != ECT_RED_NONE)
+      		port->redport->rxbufstat[idx] = EC_BUF_ALLOC;
+   	port->lastidx = idx;
+
+   	return idx;
 }
 
 /** Set rx buffer status.
@@ -164,6 +187,9 @@ int ecx_getindex(ecx_portt *port)
  */
 void ecx_setbufstat(ecx_portt *port, int idx, int bufstat)
 {
+   	port->rxbufstat[idx] = bufstat;
+   	if (port->redstate != ECT_RED_NONE)
+      		port->redport->rxbufstat[idx] = bufstat;
 }
 
 /** Transmit buffer over socket (non blocking).
@@ -174,6 +200,17 @@ void ecx_setbufstat(ecx_portt *port, int idx, int bufstat)
  */
 int ecx_outframe(ecx_portt *port, int idx, int stacknumber)
 {
+   	int lp;
+   	ec_stackT *stack;
+
+   	if (!stacknumber)
+      		stack = &(port->stack);
+   	else
+      		stack = &(port->redport->stack);
+   	lp = (*stack->txbuflength)[idx];
+   	(*stack->rxbufstat)[idx] = EC_BUF_TX;
+	eth_send_packet(port->dev_id, (*stack->txbuf)[idx], lp);
+      	(*stack->rxbufstat)[idx] = EC_BUF_EMPTY;
 
    	return 1;
 }
@@ -186,6 +223,7 @@ int ecx_outframe(ecx_portt *port, int idx, int stacknumber)
 int ecx_outframe_red(ecx_portt *port, int idx)
 {
 
+	// FIXME
    	return 1;
 }
 
@@ -196,7 +234,18 @@ int ecx_outframe_red(ecx_portt *port, int idx)
  */
 static int ecx_recvpkt(ecx_portt *port, int stacknumber)
 {
-   	return 1;
+   	int lp, bytesrx;
+   	ec_stackT *stack;
+
+   	if (!stacknumber)
+      		stack = &(port->stack);
+   	else
+      		stack = &(port->redport->stack);
+   	lp = sizeof(port->tempinbuf);
+   	bytesrx = eth_receive_packet(port->dev_id, (*stack->tempbuf), lp);
+   	port->tempinbufs = bytesrx;
+
+   	return (bytesrx > 0);
 }
 
 /** Non blocking receive frame function. Uses RX buffer and index to combine
