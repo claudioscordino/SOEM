@@ -227,9 +227,31 @@ int ecx_outframe(ecx_portt *port, int idx, int stacknumber)
  */
 int ecx_outframe_red(ecx_portt *port, int idx)
 {
+   	ec_comt *datagramP;
+   	ec_etherheadert *ehp;
+   	int rval;
 
-	// FIXME
-   	return 1;
+   	ehp = (ec_etherheadert *)&(port->txbuf[idx]);
+   	/* rewrite MAC source address 1 to primary */
+   	ehp->sa1 = oshw_htons(priMAC[1]);
+   	/* transmit over primary socket*/
+   	rval = ecx_outframe(port, idx, 0);
+   	if (port->redstate != ECT_RED_NONE) {
+      		ee_port_lock();
+      		ehp = (ec_etherheadert *)&(port->txbuf2);
+      		/* use dummy frame for secondary socket transmit (BRD) */
+      		datagramP = (ec_comt*)&(port->txbuf2[ETH_HEADERSIZE]);
+      		/* write index to frame */
+      		datagramP->index = idx;
+      		/* rewrite MAC source address 1 to secondary */
+      		ehp->sa1 = oshw_htons(secMAC[1]);
+      		/* transmit over secondary socket */
+      		port->redport->rxbufstat[idx] = EC_BUF_TX;
+      		eth_send_packet(port->dev_id, &(port->txbuf2), port->txbuflength2);
+		ee_port_unlock();
+   	}
+
+   	return rval;
 }
 
 /** Non blocking read of socket. Put frame in temporary buffer.
@@ -350,9 +372,70 @@ int ecx_inframe(ecx_portt *port, int idx, int stacknumber)
  */
 static int ecx_waitinframe_red(ecx_portt *port, int idx, osal_timert *timer)
 {
+   	osal_timert timer2;
+   	int wkc  = EC_NOFRAME;
+   	int wkc2 = EC_NOFRAME;
+   	int primrx, secrx;
+
+   	/* if not in redundant mode then always assume secondary is OK */
+   	if (port->redstate == ECT_RED_NONE)
+      		wkc2 = 0;
+   	do {
+      		/* only read frame if not already in */
+      		if (wkc <= EC_NOFRAME)
+         		wkc  = ecx_inframe(port, idx, 0);
+      		/* only try secondary if in redundant mode */
+      		if (port->redstate != ECT_RED_NONE) {
+         		/* only read frame if not already in */
+         		if (wkc2 <= EC_NOFRAME)
+            			wkc2 = ecx_inframe(port, idx, 1);
+      		}
+   		/* wait for both frames to arrive or timeout */
+   	} while (((wkc <= EC_NOFRAME) || (wkc2 <= EC_NOFRAME)) && !osal_timer_is_expired(timer));
+   	/* only do redundant functions when in redundant mode */
+   	if (port->redstate != ECT_RED_NONE) {
+      		/* primrx if the reveived MAC source on primary socket */
+      		primrx = 0;
+      		if (wkc > EC_NOFRAME) primrx = port->rxsa[idx];
+      		/* secrx if the reveived MAC source on psecondary socket */
+      		secrx = 0;
+      		if (wkc2 > EC_NOFRAME) secrx = port->redport->rxsa[idx];
+
+      		/* primary socket got secondary frame and secondary socket got primary frame */
+      		/* normal situation in redundant mode */
+      		if ( ((primrx == RX_SEC) && (secrx == RX_PRIM)) ) {
+         		/* copy secondary buffer to primary */
+         		memcpy(&(port->rxbuf[idx]), &(port->redport->rxbuf[idx]), port->txbuflength[idx] - ETH_HEADERSIZE);
+         		wkc = wkc2;
+      		}
+      		/* primary socket got nothing or primary frame, and secondary socket got secondary frame */
+      		/* we need to resend TX packet */
+      		if ( ((primrx == 0) && (secrx == RX_SEC)) ||
+           			((primrx == RX_PRIM) && (secrx == RX_SEC)) ) {
+         		/* If both primary and secondary have partial connection retransmit the primary received
+          		 * frame over the secondary socket. The result from the secondary received frame is a combined
+          		 * frame that traversed all slaves in standard order. */
+         		if ( (primrx == RX_PRIM) && (secrx == RX_SEC) ) {
+            			/* copy primary rx to tx buffer */
+            			memcpy(&(port->txbuf[idx][ETH_HEADERSIZE]), &(port->rxbuf[idx]), port->txbuflength[idx] - ETH_HEADERSIZE);
+         		}
+         		osal_timer_start (&timer2, EC_TIMEOUTRET);
+         		/* resend secondary tx */
+         		ecx_outframe(port, idx, 1);
+         		do {
+            			/* retrieve frame */
+            			wkc2 = ecx_inframe(port, idx, 1);
+         		} while ((wkc2 <= EC_NOFRAME) && !osal_timer_is_expired(&timer2));
+         		if (wkc2 > EC_NOFRAME) {
+            			/* copy secondary result to primary rx buffer */
+            			memcpy(&(port->rxbuf[idx]), &(port->redport->rxbuf[idx]), port->txbuflength[idx] - ETH_HEADERSIZE);
+            			wkc = wkc2;
+         		}
+      		}
+   	}
 
    	/* return WKC or EC_NOFRAME */
-   	return 1;
+   	return wkc;
 }
 
 /** Blocking receive frame function. Calls ec_waitinframe_red().
@@ -364,8 +447,16 @@ static int ecx_waitinframe_red(ecx_portt *port, int idx, osal_timert *timer)
  */
 int ecx_waitinframe(ecx_portt *port, int idx, int timeout)
 {
+   	int wkc;
+   	osal_timert timer;
 
-   	return 1;
+   	osal_timer_start (&timer, timeout);
+   	wkc = ecx_waitinframe_red(port, idx, &timer);
+   	/* if nothing received, clear buffer index status so it can be used again */
+   	if (wkc <= EC_NOFRAME)
+      		ecx_setbufstat(port, idx, EC_BUF_EMPTY);
+
+   	return wkc;
 }
 
 /** Blocking send and recieve frame function. Used for non processdata frames.
@@ -382,7 +473,29 @@ int ecx_waitinframe(ecx_portt *port, int idx, int timeout)
  */
 int ecx_srconfirm(ecx_portt *port, int idx, int timeout)
 {
+   	int wkc = EC_NOFRAME;
+   	osal_timert timer1, timer2;
 
-   	return 1;
+   	osal_timer_start (&timer1, timeout);
+   	do  {
+      		/* tx frame on primary and if in redundant mode a dummy on secondary */
+      		ecx_outframe_red(port, idx);
+      		if (timeout < EC_TIMEOUTRET) {
+         		osal_timer_start (&timer2, timeout);
+      		} else {
+         		/* normally use partial timout for rx */
+         		osal_timer_start (&timer2, EC_TIMEOUTRET);
+      		}
+      		/* get frame from primary or if in redundant mode possibly
+		   from secondary */
+      		wkc = ecx_waitinframe_red(port, idx, &timer2);
+   		/* wait for answer with WKC>=0 or otherwise retry until timeout */
+   	} while ((wkc <= EC_NOFRAME) && !osal_timer_is_expired (&timer1));
+
+   	/* if nothing received, clear buffer index status so it can be used again */
+   	if (wkc <= EC_NOFRAME)
+      		ecx_setbufstat(port, idx, EC_BUF_EMPTY);
+
+   	return wkc;
 }
 
