@@ -79,6 +79,9 @@ typedef struct
    	/** pointer to redundancy port and buffers */
    	ecx_redportt *redport;
 
+	/** Device id in the device pool */
+	int dev_id;
+
 	// TODO: add mutex support
 } ecx_portt;
 
@@ -89,7 +92,7 @@ extern ecx_portt     ecx_port;
 extern ecx_redportt  ecx_redport;
 
 void ec_setupheader(void *p);
-int ecx_setupnic(ecx_portt *port, const char * ifname, int secondary);
+int ecx_setupnic(ecx_portt *port, const char *ifname, int secondary);
 int ecx_closenic(ecx_portt *port);
 void ecx_setbufstat(ecx_portt *port, int idx, int bufstat);
 int ecx_getindex(ecx_portt *port);
