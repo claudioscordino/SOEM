@@ -73,6 +73,9 @@ static inline void ecx_clear_rxbufstat(int *rxbufstat)
 	memset(rxbufstat, EC_BUF_EMPTY, EC_MAXBUF);
 }
 
+void ee_port_lock(void);
+void ee_port_unlock(void);
+
 /** Basic setup to connect NIC to socket.
  * @param[in] port        = port context struct
  * @param[in] ifname      = Name of NIC device, f.e. "eth0"
@@ -158,7 +161,7 @@ int ecx_getindex(ecx_portt *port)
    	int idx;
    	int cnt = 0;
 
-	// TODO: add locking
+	ee_port_lock();
 
    	idx = port->lastidx + 1;
    	/* index can't be larger than buffer array */
@@ -176,6 +179,8 @@ int ecx_getindex(ecx_portt *port)
    	if (port->redstate != ECT_RED_NONE)
       		port->redport->rxbufstat[idx] = EC_BUF_ALLOC;
    	port->lastidx = idx;
+
+	ee_port_unlock();
 
    	return idx;
 }
@@ -266,7 +271,69 @@ static int ecx_recvpkt(ecx_portt *port, int stacknumber)
  */
 int ecx_inframe(ecx_portt *port, int idx, int stacknumber)
 {
-   	return 1;
+   	uint16  l;
+   	int     rval;
+   	int     idxf;
+   	ec_etherheadert *ehp;
+   	ec_comt *ecp;
+   	ec_stackT *stack;
+   	ec_bufT *rxbuf;
+
+   	if (!stacknumber)
+      		stack = &(port->stack);
+   	else
+      		stack = &(port->redport->stack);
+   	rval = EC_NOFRAME;
+   	rxbuf = &(*stack->rxbuf)[idx];
+   	/* check if requested index is already in buffer ? */
+   	if ((idx < EC_MAXBUF) && ((*stack->rxbufstat)[idx] == EC_BUF_RCVD)) {
+      		l = (*rxbuf)[0] + ((uint16)((*rxbuf)[1] & 0x0f) << 8);
+      		/* return WKC */
+      		rval = ((*rxbuf)[l] + ((uint16)(*rxbuf)[l + 1] << 8));
+      		/* mark as completed */
+      		(*stack->rxbufstat)[idx] = EC_BUF_COMPLETE;
+   	} else {
+		ee_port_lock();
+      		/* non blocking call to retrieve frame from socket */
+      		if (ecx_recvpkt(port, stacknumber)) {
+         		rval = EC_OTHERFRAME;
+         		ehp =(ec_etherheadert*)(stack->tempbuf);
+         		/* check if it is an EtherCAT frame */
+         		if (ehp->etype == oshw_htons(ETH_P_ECAT)) {
+            			ecp =(ec_comt*)(&(*stack->tempbuf)[ETH_HEADERSIZE]);
+            			l = etohs(ecp->elength) & 0x0fff;
+            			idxf = ecp->index;
+            			/* found index equals reqested index ? */
+            			if (idxf == idx) {
+               				/* yes, put it in the buffer array (strip ethernet header) */
+               				memcpy(rxbuf, &(*stack->tempbuf)[ETH_HEADERSIZE], (*stack->txbuflength)[idx] - ETH_HEADERSIZE);
+               				/* return WKC */
+               				rval = ((*rxbuf)[l] + ((uint16)((*rxbuf)[l + 1]) << 8));
+               				/* mark as completed */
+               				(*stack->rxbufstat)[idx] = EC_BUF_COMPLETE;
+               				/* store MAC source word 1 for redundant routing info */
+               				(*stack->rxsa)[idx] = oshw_ntohs(ehp->sa1);
+            			} else {
+               				/* check if index exist and someone is waiting for it */
+               				if (idxf < EC_MAXBUF && (*stack->rxbufstat)[idxf] == EC_BUF_TX) {
+                  				rxbuf = &(*stack->rxbuf)[idxf];
+                  				/* put it in the buffer array (strip ethernet header) */
+                  				memcpy(rxbuf, &(*stack->tempbuf)[ETH_HEADERSIZE], (*stack->txbuflength)[idxf] - ETH_HEADERSIZE);
+                  				/* mark as received */
+                  				(*stack->rxbufstat)[idxf] = EC_BUF_RCVD;
+                  				(*stack->rxsa)[idxf] = oshw_ntohs(ehp->sa1);
+               				} else {
+                  				/* strange things happend */
+               				}
+            			}
+         		}
+      		}
+		ee_port_unlock();
+
+   	}
+
+   	/* WKC if mathing frame found */
+   	return rval;
 }
 
 /** Blocking redundant receive frame function. If redundant mode is not active then
