@@ -24,6 +24,8 @@ uint16 oshw_ntohs(uint16 networkshort);
 ec_adaptert* oshw_find_adapters(void);
 void oshw_free_adapters(ec_adaptert * adapter);
 
+void print_slave_info (void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -63,3 +63,16 @@ ec_adaptert* oshw_find_adapters(void)
 void oshw_free_adapters(ec_adaptert *adapter)
 {
 }
+
+extern int ec_slavecount;
+
+void print_slave_info (void)
+{
+   	for (int i = 0; i < ec_slavecount; ++i) {
+	   	OSEE_PRINT("Name: %s\n", ec_slave[i].name);
+	   	OSEE_PRINT("State: %u\n", ec_slave[i].state);
+	   	OSEE_PRINT("Output bytes: %u\n", ec_slave[i].Obytes);
+	   	OSEE_PRINT("Input bytes: %u\n", ec_slave[i].Ibytes);
+	   	OSEE_PRINT("Configured address: %u\n", ec_slave[i].configadr);
+	}
+}
