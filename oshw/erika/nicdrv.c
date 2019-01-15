@@ -68,13 +68,15 @@ const uint16 secMAC[3] = { 0x0604, 0x0404, 0x0404 };
 /** second MAC word is used for identification */
 #define RX_SEC secMAC[1]
 
-static inline void ecx_clear_rxbufstat(int *rxbufstat)
-{
-	memset(rxbufstat, EC_BUF_EMPTY, EC_MAXBUF);
-}
-
 void ee_port_lock(void);
 void ee_port_unlock(void);
+
+static inline void ecx_clear_rxbufstat(int *rxbufstat)
+{
+   	int i;
+   	for(i = 0; i < EC_MAXBUF; i++)
+      		rxbufstat[i] = EC_BUF_EMPTY;
+}
 
 /** Basic setup to connect NIC to socket.
  * @param[in] port        = port context struct
