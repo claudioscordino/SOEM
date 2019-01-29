@@ -13,6 +13,16 @@ extern "C"
 
 #include <sys/time.h>
 #include <stdlib.h>
+#include <ee.h>
+
+// define if debug print is needed
+#define EC_DEBUG
+
+#ifdef EC_DEBUG
+#define EC_PRINT OSEE_PRINT
+#else
+#define EC_PRINT(...) do {} while (0)
+#endif
 
 #ifndef PACKED
 #define PACKED_BEGIN

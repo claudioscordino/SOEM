@@ -30,6 +30,7 @@ void ee_usleep(uint32 usec);
 
 inline int osal_usleep (uint32 usec)
 {
+	OSEE_PRINT("osal_usleep(%u)\n", usec);
 	ee_usleep(usec);
 	return 0;
 }
