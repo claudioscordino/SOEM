@@ -68,6 +68,7 @@ extern int ec_slavecount;
 
 void print_slave_info (void)
 {
+	OSEE_PRINT("Printing slave info for %d slaves...\n", ec_slavecount);
    	for (int i = 0; i < ec_slavecount; ++i) {
 	   	OSEE_PRINT("Name: %s\n", ec_slave[i].name);
 	   	OSEE_PRINT("State: %u\n", ec_slave[i].state);

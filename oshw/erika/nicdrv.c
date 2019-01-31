@@ -219,11 +219,10 @@ int ecx_outframe(ecx_portt *port, int idx, int stacknumber)
    	lp = (*stack->txbuflength)[idx];
    	(*stack->rxbufstat)[idx] = EC_BUF_TX;
 
-	for (int i = 0; i < 10; ++i){
-		osal_usleep(1000);
-		eth_send_packet(port->dev_id, (*stack->txbuf)[idx], lp);
-	}
+	for (int i = 0; i < 5; ++i)
+		eth_send_packet(port->dev_id, (*stack->txbuf)[idx], lp, 1);
       	(*stack->rxbufstat)[idx] = EC_BUF_EMPTY;
+	OSEE_PRINT("returning from ecx_outframe()\n");
 
    	return 1;
 }
@@ -256,9 +255,10 @@ int ecx_outframe_red(ecx_portt *port, int idx)
       		ehp->sa1 = oshw_htons(secMAC[1]);
       		/* transmit over secondary socket */
       		port->redport->rxbufstat[idx] = EC_BUF_TX;
-      		eth_send_packet(port->dev_id, &(port->txbuf2), port->txbuflength2);
+      		eth_send_packet(port->dev_id, &(port->txbuf2), port->txbuflength2, 1);
 		ee_port_unlock();
    	}
+	OSEE_PRINT("returning from ecx_outframe_red()\n");
 
    	return rval;
 }
@@ -272,13 +272,14 @@ static int ecx_recvpkt(ecx_portt *port, int stacknumber)
 {
    	int lp, bytesrx;
    	ec_stackT *stack;
+	OSEE_PRINT("ecx_recvpkt()\n");
 
    	if (!stacknumber)
       		stack = &(port->stack);
    	else
       		stack = &(port->redport->stack);
    	lp = sizeof(port->tempinbuf);
-   	bytesrx = eth_receive_packet(port->dev_id, (*stack->tempbuf), lp);
+   	bytesrx = eth_receive_packet(port->dev_id, (*stack->tempbuf), lp, 1);
    	port->tempinbufs = bytesrx;
 
    	return (bytesrx > 0);
@@ -309,6 +310,7 @@ int ecx_inframe(ecx_portt *port, int idx, int stacknumber)
    	ec_comt *ecp;
    	ec_stackT *stack;
    	ec_bufT *rxbuf;
+	OSEE_PRINT("ecx_inframe()\n");
 
    	if (!stacknumber)
       		stack = &(port->stack);
@@ -358,7 +360,9 @@ int ecx_inframe(ecx_portt *port, int idx, int stacknumber)
                				}
             			}
          		}
-      		}
+      		} else {
+			OSEE_PRINT("ecx_inframe(): Warning: no messages received!\n");
+		}
 		ee_port_unlock();
 
    	}
@@ -385,6 +389,7 @@ static int ecx_waitinframe_red(ecx_portt *port, int idx, osal_timert *timer)
    	int wkc  = EC_NOFRAME;
    	int wkc2 = EC_NOFRAME;
    	int primrx, secrx;
+	OSEE_PRINT("ecx_waitinframe_red()\n");
 
    	/* if not in redundant mode then always assume secondary is OK */
    	if (port->redstate == ECT_RED_NONE)
@@ -490,6 +495,7 @@ int ecx_srconfirm(ecx_portt *port, int idx, int timeout)
    	do  {
       		/* tx frame on primary and if in redundant mode a dummy on secondary */
       		ecx_outframe_red(port, idx);
+		OSEE_PRINT("ecx_srconfirm(): setting timer...\n");
       		if (timeout < EC_TIMEOUTRET) {
          		osal_timer_start (&timer2, timeout);
       		} else {
