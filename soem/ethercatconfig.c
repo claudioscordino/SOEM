@@ -296,6 +296,9 @@ static int ecx_lookup_prev_sii(ecx_contextt *context, uint16 slave)
    return 0;
 }
 
+#undef EC_PRINT
+#define EC_PRINT OSEE_PRINT
+
 /** Enumerate and init all slaves.
  *
  * @param[in] context      = context struct

@@ -30,7 +30,6 @@ void ee_usleep(uint32 usec);
 
 inline int osal_usleep (uint32 usec)
 {
-	OSEE_PRINT("osal_usleep(%u)\n", usec);
 	ee_usleep(usec);
 	return 0;
 }
@@ -80,7 +79,7 @@ void osal_timer_start(osal_timert *self, uint32 timeout_usec)
    	self->stop_time.usec = stop_time.tv_usec;
 }
 
-boolean osal_timer_is_expired (osal_timert * self)
+boolean osal_timer_is_expired (osal_timert *self)
 {
    	struct timeval current_time;
    	struct timeval stop_time;
@@ -90,6 +89,12 @@ boolean osal_timer_is_expired (osal_timert * self)
    	stop_time.tv_sec = self->stop_time.sec;
    	stop_time.tv_usec = self->stop_time.usec;
    	is_not_yet_expired = timercmp (&current_time, &stop_time, <);
+/* 	OSEE_PRINT("current: %d:%d -- expire: %d:%d -- result: %d\n", */
+/* 			current_time.tv_sec, */
+/* 			current_time.tv_usec, */
+/* 			stop_time.tv_sec, */
+/* 			stop_time.tv_usec, */
+/* 			is_not_yet_expired); */
 
    	return is_not_yet_expired == FALSE;
 }
