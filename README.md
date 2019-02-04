@@ -29,17 +29,6 @@ Linux
    * `cmake ..`
    * `make`
 
-ERIKA Enterprise
-----------------
-
-Put the cross-compiler in your path, then type:
-
-   * `mkdir build`
-   * `cd build`
-   * `export CROSS_COMPILE=x86_64-unknown-elf-`
-   * `cmake -DCMAKE_SYSTEM_NAME="erika" ..`
-   * `make`
-
 Documentation
 -------------
 
