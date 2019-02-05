@@ -304,7 +304,10 @@ int ecx_inframe(ecx_portt *port, int idx, int stacknumber)
    	ec_comt *ecp;
    	ec_stackT *stack;
    	ec_bufT *rxbuf;
-	OSEE_PRINT("ecx_inframe()\n");
+
+	// This is needed for some race condition
+	uint64_t expire = osEE_x86_64_tsc_read() + 100000; // 100 us
+	while (osEE_x86_64_tsc_read() < expire) ;
 
    	if (!stacknumber)
       		stack = &(port->stack);
