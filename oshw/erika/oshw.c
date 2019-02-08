@@ -95,7 +95,7 @@ void print_slave_info (void)
 	   	OSEE_PRINT("\tInput bytes: %u\n", ec_slave[i].Ibytes);
 	   	OSEE_PRINT("\tInput bits: %u\n", ec_slave[i].Ibits);
 	   	OSEE_PRINT("\tConfigured address: %u\n", ec_slave[i].configadr);
-	   	OSEE_PRINT("\tOutput address: %x\n", ec_slave[i].outputs);
+	   	OSEE_PRINT("\tOutput address: %p\n", ec_slave[i].outputs);
 	   	OSEE_PRINT("\tOstartbit: %x\n", ec_slave[i].Ostartbit);
 	   	OSEE_PRINT("\tCoE details: %x\n", ec_slave[i].CoEdetails); // See ECT_COEDET_*
 	   	OSEE_PRINT("\tHas DC capability: %d\n\n", ec_slave[i].hasdc);

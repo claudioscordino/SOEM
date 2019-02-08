@@ -25,6 +25,8 @@ ec_adaptert* oshw_find_adapters(void);
 void oshw_free_adapters(ec_adaptert * adapter);
 
 void print_slave_info (void);
+void set_operational (void);
+void test_slave (void);
 
 #ifdef __cplusplus
 }

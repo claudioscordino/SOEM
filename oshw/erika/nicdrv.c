@@ -41,6 +41,8 @@
 
 #include "oshw.h"
 #include "osal.h"
+#include "nicdrv.h"
+#include "ee.h"
 #include "intel_i210.h"
 
 /** Redundancy modes */
