@@ -330,45 +330,48 @@ int ecx_inframe(ecx_portt *port, int idx, int stacknumber)
    	} else {
 		ee_port_lock();
       		/* non blocking call to retrieve frame from socket */
-      		if (ecx_recvpkt(port, stacknumber)) {
-         		rval = EC_OTHERFRAME;
-         		ehp =(ec_etherheadert*)(stack->tempbuf);
-         		/* check if it is an EtherCAT frame */
-         		if (ehp->etype == oshw_htons(ETH_P_ECAT)) {
-            			ecp =(ec_comt*)(&(*stack->tempbuf)[ETH_HEADERSIZE]);
-            			l = etohs(ecp->elength) & 0x0fff;
-            			idxf = ecp->index;
-            			/* found index equals requested index ? */
-            			if (idxf == idx) {
-               				/* yes, put it in the buffer array (strip ethernet header) */
-               				memcpy(rxbuf, &(*stack->tempbuf)[ETH_HEADERSIZE], (*stack->txbuflength)[idx] - ETH_HEADERSIZE);
-               				/* return WKC */
-               				rval = ((*rxbuf)[l] + ((uint16)((*rxbuf)[l + 1]) << 8));
-               				/* mark as completed */
-               				(*stack->rxbufstat)[idx] = EC_BUF_COMPLETE;
-               				/* store MAC source word 1 for redundant routing info */
-               				(*stack->rxsa)[idx] = oshw_ntohs(ehp->sa1);
-            			} else {
-               				/* check if index exist and someone is waiting for it */
-					OSEE_PRINT("ecx_inframe(): found index (%d) != requested index (%d)!\n", idxf, idx);
-               				if (idxf < EC_MAXBUF && (*stack->rxbufstat)[idxf] == EC_BUF_TX) {
+
+
+		while (1) {
+      			if (ecx_recvpkt(port, stacknumber)) {
+         			rval = EC_OTHERFRAME;
+         			ehp =(ec_etherheadert*)(stack->tempbuf);
+         			/* check if it is an EtherCAT frame */
+         			if (ehp->etype == oshw_htons(ETH_P_ECAT)) {
+            				ecp =(ec_comt*)(&(*stack->tempbuf)[ETH_HEADERSIZE]);
+            				l = etohs(ecp->elength) & 0x0fff;
+            				idxf = ecp->index;
+            				/* found index equals requested index ? */
+            				if (idxf == idx) {
+               					/* yes, put it in the buffer array (strip ethernet header) */
+               					memcpy(rxbuf, &(*stack->tempbuf)[ETH_HEADERSIZE], (*stack->txbuflength)[idx] - ETH_HEADERSIZE);
+               					/* return WKC */
+               					rval = ((*rxbuf)[l] + ((uint16)((*rxbuf)[l + 1]) << 8));
+               					/* mark as completed */
+               					(*stack->rxbufstat)[idx] = EC_BUF_COMPLETE;
+               					/* store MAC source word 1 for redundant routing info */
+               					(*stack->rxsa)[idx] = oshw_ntohs(ehp->sa1);
+						break;
+            				} else if (idxf < EC_MAXBUF && (*stack->rxbufstat)[idxf] == EC_BUF_TX) {
                   				rxbuf = &(*stack->rxbuf)[idxf];
                   				/* put it in the buffer array (strip ethernet header) */
                   				memcpy(rxbuf, &(*stack->tempbuf)[ETH_HEADERSIZE], (*stack->txbuflength)[idxf] - ETH_HEADERSIZE);
                   				/* mark as received */
                   				(*stack->rxbufstat)[idxf] = EC_BUF_RCVD;
                   				(*stack->rxsa)[idxf] = oshw_ntohs(ehp->sa1);
+						break;
                				} else {
 						OSEE_PRINT("ecx_inframe(): WARNING: strange things happened\n");
                   				/* strange things happened */
                				}
-            			}
-         		} else {
-				OSEE_PRINT("ecx_inframe(): WARNING it is NOT an EtherCAT frame!\n");
+         			} else {
+					OSEE_PRINT("ecx_inframe(): WARNING it is NOT an EtherCAT frame!\n");
+				}
+      			} else {
+				OSEE_PRINT("ecx_inframe(): WARNING: no messages received!\n");
 			}
-      		} else {
-			OSEE_PRINT("ecx_inframe(): WARNING: no messages received!\n");
 		}
+
 		ee_port_unlock();
 
    	}
