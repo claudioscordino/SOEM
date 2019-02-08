@@ -89,13 +89,14 @@ static inline void ecx_clear_rxbufstat(int *rxbufstat)
 int ecx_setupnic(ecx_portt *port, const char *ifname, int secondary)
 {
    	int d;
+	struct eth_device *dev;
 	OSEE_PRINT("ecx_setupnic() searching %s...\n", ifname);
 
 	for (d = 0;; ++d) {
-		struct eth_device *dev = eth_get_device(d);
+		dev = eth_get_device(d);
 
 		if (dev == NULL)
-			return 0; // ERROR: device not found
+			break; // ERROR: device not found
 
 		if (!strncmp(dev->name, ifname, MAX_DEVICE_NAME)){
 			// Device found
@@ -124,9 +125,11 @@ int ecx_setupnic(ecx_portt *port, const char *ifname, int secondary)
    			}
    			ec_setupheader(&(port->txbuf2));
 
-			return 1;
+			break; // device found
 		}
 	}
+
+	return (dev != NULL);
 }
 
 /** Close sockets used

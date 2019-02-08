@@ -26,7 +26,7 @@ void oshw_free_adapters(ec_adaptert * adapter);
 
 void print_slave_info (void);
 void set_operational (void);
-void test_slave (void);
+void set_output_int16 (uint16 slave_nb, uint8 module_index, int16 value);
 
 #ifdef __cplusplus
 }

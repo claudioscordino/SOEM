@@ -45,19 +45,20 @@ inline uint16 oshw_ntohs(uint16 network)
  */
 ec_adaptert* oshw_find_adapters(void)
 {
-	int i;
-	if (eth_discover_devices() < 0)
-		return NULL;	// ERROR
-	for (i = 0;; ++i) {
-		struct eth_device *dev = eth_get_device(i);
-		if (dev == NULL) {
-			adapters[i-1].next = NULL;
-			break;
+	ec_adaptert *ret = NULL;
+	if (eth_discover_devices() >= 0) {
+		for (int i = 0;; ++i) {
+			struct eth_device *dev = eth_get_device(i);
+			if (dev == NULL) {
+				adapters[i-1].next = NULL;
+				break;
+			}
+			strncpy(adapters[i].name, dev->name, MAX_DEVICE_NAME);
+			adapters[i].next = &adapters[i+1];
 		}
-		strncpy(adapters[i].name, dev->name, MAX_DEVICE_NAME);
-		adapters[i].next = &adapters[i+1];
+		ret = &(adapters[0]);
 	}
-	return &(adapters[0]);
+	return ret;
 }
 
 /** Free memory allocated memory used by adapter collection.
@@ -133,14 +134,16 @@ void set_operational (void)
 	}
 }
 
-
-void test_slave (void)
+void set_output_int16 (uint16_t slave_nb, uint8_t module_index, int16_t value)
 {
-        uint8 *data_ptr = ec_slave[4].outputs;
-        *data_ptr = (0x01 >> 0) & 0xFF;
+   	uint8_t *data_ptr;
 
-        while(1) {
-                ec_send_processdata();
-                ec_receive_processdata(EC_TIMEOUTRET);
-        }
+   	data_ptr = ec_slave[slave_nb].outputs;
+   	/* Move pointer to correct module index*/
+   	data_ptr += module_index * 2;
+   	/* Read value byte by byte since all targets can't handle misaligned
+      	   addresses */
+   	*data_ptr++ = (value >> 0) & 0xFF;
+   	*data_ptr++ = (value >> 8) & 0xFF;
 }
+
