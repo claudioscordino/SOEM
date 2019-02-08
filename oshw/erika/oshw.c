@@ -105,25 +105,9 @@ void print_slave_info (void)
 void set_operational (void)
 {
     	int chk;
-	int expectedWKC;
-
-        ec_configdc();
-
-        OSEE_PRINT("Slaves mapped, state to SAFE_OP.\n");
-        /* wait for all slaves to reach SAFE_OP state */
+	/* wait for all slaves to reach SAFE_OP state */
         ec_statecheck(0, EC_STATE_SAFE_OP,  EC_TIMEOUTSTATE * 4);
 
-
-        OSEE_PRINT("segments : %d : %d %d %d %d\n",
-			ec_group[0].nsegments,
-			ec_group[0].IOsegment[0],
-			ec_group[0].IOsegment[1],
-			ec_group[0].IOsegment[2],
-			ec_group[0].IOsegment[3]);
-
-        OSEE_PRINT("Request operational state for all slaves\n");
-        expectedWKC = (ec_group[0].outputsWKC * 2) + ec_group[0].inputsWKC;
-        OSEE_PRINT("Calculated workcounter %d\n", expectedWKC);
         ec_slave[0].state = EC_STATE_OPERATIONAL;
         /* send one valid process data to make outputs in slaves happy*/
         ec_send_processdata();
@@ -131,180 +115,32 @@ void set_operational (void)
         /* request OP state for all slaves */
         ec_writestate(0);
         chk = 40;
-        /* wait for all slaves to reach OP state */
         do {
-            	ec_send_processdata();
-            	ec_receive_processdata(EC_TIMEOUTRET);
-            	ec_statecheck(0, EC_STATE_OPERATIONAL, EC_TIMEOUTSTATE * 4);
+              	ec_send_processdata();
+              	ec_receive_processdata(EC_TIMEOUTRET);
+              	ec_statecheck(0, EC_STATE_OPERATIONAL, 50000);
         } while (chk-- && (ec_slave[0].state != EC_STATE_OPERATIONAL));
-        ec_statecheck(0, EC_STATE_OPERATIONAL, EC_TIMEOUTSTATE * 4);
 
         if (ec_slave[0].state == EC_STATE_OPERATIONAL ) {
-            	OSEE_PRINT("Operational state reached for all slaves.\n");
+		for (int i = 1; i < ec_slavecount +1; ++i)
+			ec_slave[i].state = EC_STATE_OPERATIONAL;
+		for (int i = 1; i < ec_slavecount +1; ++i)
+			ec_writestate(i);
+		ec_send_processdata();
+		ec_receive_processdata(EC_TIMEOUTRET);
 	} else {
-            	OSEE_PRINT("WARNING: Operational state NOT reached for all slaves.\n");
+		OSEE_PRINT("WARNING: cannot reach OPERATIONAL state\n");
 	}
-
-
-        ec_slave[4].state = EC_STATE_OPERATIONAL;
-        ec_writestate(4);
-        ec_send_processdata();
-
-	int16_t value = 0x3FFF;
-	uint8 *data_ptr;
-	data_ptr = ec_slave[4].outputs;
-	*data_ptr++ = (value >> 0) & 0xFF;
-   	*data_ptr++ = (value >> 8) & 0xFF;
-        ec_send_processdata();
 }
 
 
-#if 0
-
-char usdo[128];
-char hstr[1024];
-
-char* SDO2string(uint16 slave, uint16 index, uint8 subidx, uint16 dtype)
+void test_slave (void)
 {
-   int l = sizeof(usdo) - 1, i;
-   uint8 *u8;
-   int8 *i8;
-   uint16 *u16;
-   int16 *i16;
-   uint32 *u32;
-   int32 *i32;
-   uint64 *u64;
-   int64 *i64;
-   float *sr;
-   double *dr;
-   char es[32];
+        uint8 *data_ptr = ec_slave[4].outputs;
+        *data_ptr = (0x01 >> 0) & 0xFF;
 
-   memset(&usdo, 0, 128);
-   ec_SDOread(slave, index, subidx, FALSE, &l, &usdo, EC_TIMEOUTRXM);
-   if (EcatError)
-   {
-      return ec_elist2string();
-   }
-   else
-   {
-      switch(dtype)
-      {
-         case ECT_BOOLEAN:
-            u8 = (uint8*) &usdo[0];
-            if (*u8) sprintf(hstr, "TRUE");
-             else sprintf(hstr, "FALSE");
-            break;
-         case ECT_INTEGER8:
-            i8 = (int8*) &usdo[0];
-            sprintf(hstr, "0x%2.2x %d", *i8, *i8);
-            break;
-         case ECT_INTEGER16:
-            i16 = (int16*) &usdo[0];
-            sprintf(hstr, "0x%4.4x %d", *i16, *i16);
-            break;
-         case ECT_INTEGER32:
-         case ECT_INTEGER24:
-            i32 = (int32*) &usdo[0];
-            sprintf(hstr, "0x%8.8x %d", *i32, *i32);
-            break;
-         case ECT_INTEGER64:
-            i64 = (int64*) &usdo[0];
-            sprintf(hstr, "0x%16.16"PRIx64" %"PRId64, *i64, *i64);
-            break;
-         case ECT_UNSIGNED8:
-            u8 = (uint8*) &usdo[0];
-            sprintf(hstr, "0x%2.2x %u", *u8, *u8);
-            break;
-         case ECT_UNSIGNED16:
-            u16 = (uint16*) &usdo[0];
-            sprintf(hstr, "0x%4.4x %u", *u16, *u16);
-            break;
-         case ECT_UNSIGNED32:
-         case ECT_UNSIGNED24:
-            u32 = (uint32*) &usdo[0];
-            sprintf(hstr, "0x%8.8x %u", *u32, *u32);
-            break;
-         case ECT_UNSIGNED64:
-            u64 = (uint64*) &usdo[0];
-            sprintf(hstr, "0x%16.16"PRIx64" %"PRIu64, *u64, *u64);
-            break;
-         case ECT_REAL32:
-            sr = (float*) &usdo[0];
-            sprintf(hstr, "%f", *sr);
-            break;
-         case ECT_REAL64:
-            dr = (double*) &usdo[0];
-            sprintf(hstr, "%f", *dr);
-            break;
-         case ECT_BIT1:
-         case ECT_BIT2:
-         case ECT_BIT3:
-         case ECT_BIT4:
-         case ECT_BIT5:
-         case ECT_BIT6:
-         case ECT_BIT7:
-         case ECT_BIT8:
-            u8 = (uint8*) &usdo[0];
-            sprintf(hstr, "0x%x", *u8);
-            break;
-         case ECT_VISIBLE_STRING:
-            strcpy(hstr, usdo);
-            break;
-         case ECT_OCTET_STRING:
-            hstr[0] = 0x00;
-            for (i = 0 ; i < l ; i++)
-            {
-               sprintf(es, "0x%2.2x ", usdo[i]);
-               strcat( hstr, es);
-            }
-            break;
-         default:
-            sprintf(hstr, "Unknown type");
-      }
-      return hstr;
-   }
+        while(1) {
+                ec_send_processdata();
+                ec_receive_processdata(EC_TIMEOUTRET);
+        }
 }
-
-
-
-
-ec_ODlistt ODlist;
-ec_OElistt OElist;
-void si_sdo(int cnt)
-{
-    	int i, j;
-
-    	ODlist.Entries = 0;
-    	memset(&ODlist, 0, sizeof(ODlist));
-    	if( ec_readODlist(cnt, &ODlist))
-    	{
-        	OSEE_PRINT(" CoE Object Description found, %d entries.\n",ODlist.Entries);
-        	for( i = 0 ; i < ODlist.Entries ; i++)
-        	{
-            		ec_readODdescription(i, &ODlist);
-            		while(EcatError) OSEE_PRINT("%s", ec_elist2string());
-            		OSEE_PRINT(" Index: %4.4x Datatype: %4.4x Objectcode: %2.2x Name: %s\n",
-                			ODlist.Index[i], ODlist.DataType[i], ODlist.ObjectCode[i], ODlist.Name[i]);
-            		memset(&OElist, 0, sizeof(OElist));
-            		ec_readOE(i, &ODlist, &OElist);
-            		while(EcatError) OSEE_PRINT("%s", ec_elist2string());
-            		for( j = 0 ; j < ODlist.MaxSub[i]+1 ; j++)
-            		{
-                		if ((OElist.DataType[j] > 0) && (OElist.BitLength[j] > 0))
-                		{
-                    			OSEE_PRINT("  Sub: %2.2x Datatype: %4.4x Bitlength: %4.4x Obj.access: %4.4x Name: %s\n",
-                        				j, OElist.DataType[j], OElist.BitLength[j], OElist.ObjAccess[j], OElist.Name[j]);
-                    			if ((OElist.ObjAccess[j] & 0x0007))
-                    			{
-                        			OSEE_PRINT("          Value :%s\n", SDO2string(cnt, ODlist.Index[i], j, OElist.DataType[j]));
-                    			}
-                		}
-            		}
-        	}
-    	}
-    	else
-    	{
-        	while(EcatError) OSEE_PRINT("%s", ec_elist2string());
-    	}
-}
-#endif
